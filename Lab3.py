@@ -4,10 +4,11 @@ import tensorflow as tf
 from tensorflow import keras
 import tensorflow.keras.backend as K
 import random
-from scipy.misc import imsave, imresize
+#from scipy.misc import imsave, imresize
+from PIL import Image
 from scipy.optimize import fmin_l_bfgs_b   # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.fmin_l_bfgs_b.html
 from tensorflow.keras.applications import vgg19
-from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.preprocessing.image import load_img, img_to_array, save_img
 import warnings
 
 random.seed(1618)
@@ -18,8 +19,8 @@ tf.random.set_seed(1618)
 #tf.logging.set_verbosity(tf.logging.ERROR)   # Uncomment for TF1.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-CONTENT_IMG_PATH = ""           #TODO: Add this.
-STYLE_IMG_PATH = ""             #TODO: Add this.
+CONTENT_IMG_PATH = "ContentImg.jpg"
+STYLE_IMG_PATH = "StyleImg.jpg"
 
 CONTENT_IMG_H = 500
 CONTENT_IMG_W = 500
@@ -54,6 +55,7 @@ def gramMatrix(x):
 #========================<Loss Function Builder Functions>======================
 
 def styleLoss(style, gen):
+    #numFilters = 
     #return K.sum(k.square(gramMatrix(style) - gramMatrix(gen))) / (4.0 * ())
     return None
 
@@ -84,10 +86,12 @@ def getRawData():
 
 def preprocessData(raw):
     img, ih, iw = raw
-    img = img_to_array(img)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        img = imresize(img, (ih, iw, 3))
+        #imresize is deprecated so we're just gonna yeet this
+        #img = imresize(img, (ih, iw, 3))
+        img = img.resize((ih, iw))
+    img = img_to_array(img)
     img = img.astype("float64")
     img = np.expand_dims(img, axis=0)
     img = vgg19.preprocess_input(img)
@@ -104,31 +108,49 @@ Save the newly generated and deprocessed images.
 '''
 def styleTransfer(cData, sData, tData):
     print("   Building transfer model.")
-    contentTensor = K.variable(cData)
+    #Returns the input as an instantiated variable with keras metadata
+    contentTensor = K.variable(cData)   
     styleTensor = K.variable(sData)
-    genTensor = K.placeholder((1, CONTENT_IMG_H, CONTENT_IMG_W, 3))
-    inputTensor = K.concatenate([contentTensor, styleTensor, genTensor], axis=0)
-    model = None   #TODO: implement.
+
+    #A placeholder tensor
+    genTensor = K.placeholder((1, CONTENT_IMG_H, CONTENT_IMG_W, 3)) 
+
+    #concats all these tensors along axis specified
+    inputTensor = K.concatenate([contentTensor, styleTensor, genTensor], axis=0) 
+    
+    #TODO: look into more input options for this like pooling type
+    model = vgg19.VGG19(include_top=False, weights="imagenet", input_tensor=inputTensor)
     outputDict = dict([(layer.name, layer.output) for layer in model.layers])
     print("   VGG19 model loaded.")
+
     loss = 0.0
     styleLayerNames = ["block1_conv1", "block2_conv1", "block3_conv1", "block4_conv1", "block5_conv1"]
     contentLayerName = "block5_conv2"
+
     print("   Calculating content loss.")
     contentLayer = outputDict[contentLayerName]
     contentOutput = contentLayer[0, :, :, :]
+    print(f"Shape of content output is {str(contentOutput.Shape)}")
+
+    print("killd")
+    exit()
     genOutput = contentLayer[2, :, :, :]
-    loss += None   #TODO: implement.
+    loss += CONTENT_WEIGHT * contentLoss(contentOutput, genOutput) 
+
     print("   Calculating style loss.")
     for layerName in styleLayerNames:
         loss += None   #TODO: implement.
+
     loss += None   #TODO: implement.
+
     # TODO: Setup gradients or use K.gradients().
+    
     print("   Beginning transfer.")
     for i in range(TRANSFER_ROUNDS):
         print("   Step %d." % i)
         #TODO: perform gradient descent using fmin_l_bfgs_b.
         print("      Loss: %f." % tLoss)
+
         img = deprocessImage(x)
         saveFile = None   #TODO: Implement.
         #imsave(saveFile, img)   #Uncomment when everything is working right.
