@@ -55,9 +55,10 @@ def gramMatrix(x):
 #========================<Loss Function Builder Functions>======================
 
 def styleLoss(style, gen):
-    #numFilters = 
-    #return K.sum(k.square(gramMatrix(style) - gramMatrix(gen))) / (4.0 * ())
-    return None
+    styleG = gramMatrix(style)
+    genG = gramMatrix(gen)
+    M_l = STYLE_IMG_H * STYLE_IMG_W
+    return K.sum(K.square(styleG - genG)) / (4.0 * (TRANSFER_ROUNDS^2) * (M_l ^ 2))
 
 def contentLoss(content, gen):
     return K.sum(K.square(gen - content))
@@ -130,28 +131,34 @@ def styleTransfer(cData, sData, tData):
     print("   Calculating content loss.")
     contentLayer = outputDict[contentLayerName]
     contentOutput = contentLayer[0, :, :, :]
-    print(f"Shape of content output is {str(contentOutput.Shape)}")
-
-    print("killd")
-    exit()
     genOutput = contentLayer[2, :, :, :]
+
     loss += CONTENT_WEIGHT * contentLoss(contentOutput, genOutput) 
 
     print("   Calculating style loss.")
     for layerName in styleLayerNames:
-        loss += None   #TODO: implement.
-
-    loss += None   #TODO: implement.
+        styleLayer = outputDict[layerName]
+        styleOutput = styleLayer[1, :, :, :]
+        genOutput = styleLayer[2, :, :, :]
+        #potentially divvy up these
+        loss += STYLE_WEIGHT * styleLoss(styleOutput, genOutput)   
 
     # TODO: Setup gradients or use K.gradients().
+    gradients = K.gradients(loss, genTensor)
+    outputs = [loss]
+    outputs.append(gradients)
+    kGradientFunction = K.function([genTensor], outputs)
     
+    imgToOpt = Image.new("RGB", (CONTENT_IMG_H, CONTENT_IMG_W), (255, 255, 255))
+    imgToOpt = img_to_array(imgToOpt)
     print("   Beginning transfer.")
     for i in range(TRANSFER_ROUNDS):
         print("   Step %d." % i)
         #TODO: perform gradient descent using fmin_l_bfgs_b.
+        imgToOpt, tLoss, info = fmin_l_bfgs_b(kGradientFunction[0], imgToOpt.flatten(), fprime = kGradientFunction[1], maxfun = 20)
         print("      Loss: %f." % tLoss)
 
-        img = deprocessImage(x)
+        #img = deprocessImage(x)
         saveFile = None   #TODO: Implement.
         #imsave(saveFile, img)   #Uncomment when everything is working right.
         print("      Image saved to \"%s\"." % saveFile)
